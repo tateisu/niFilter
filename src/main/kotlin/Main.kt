@@ -61,7 +61,7 @@ suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
         return
     }
 
-    log.i("[$name] requested.")
+    log.i("requested. [$name]")
 
     try {
         val rssString = getOriginalRss<String>(client, name)
@@ -249,7 +249,7 @@ fun main(args: Array<String>) {
         timerJob.cancel()
     }
 
-    val server = embeddedServer(
+    embeddedServer(
         Netty,
         host = config.listenAddr,
         port = config.listenPort,
@@ -259,6 +259,5 @@ fun main(args: Array<String>) {
                 context.handleRequest(db, client)
             }
         }
-    }
-    server.start(wait = true)
+    }.start(wait = true)
 }
