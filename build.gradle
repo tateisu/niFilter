@@ -9,7 +9,6 @@ version "0.1"
 
 repositories {
     mavenCentral()
-    mavenCentral()
 }
 
 dependencies {
@@ -18,13 +17,9 @@ dependencies {
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.8.2"
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
-
     implementation("org.jetbrains.kotlin:kotlin-scripting-common")
     implementation("org.jetbrains.kotlin:kotlin-scripting-jvm")
     implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host")
-
-    implementation "org.jetbrains.kotlinx:kotlinx-datetime:0.3.2"
-    implementation "org.jetbrains.kotlinx:kotlinx-cli:0.3.4"
 
     def ktorVersion = "1.6.7"
     implementation "io.ktor:ktor-client-core:$ktorVersion"
