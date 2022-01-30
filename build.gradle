@@ -1,0 +1,48 @@
+plugins {
+    id "java"
+    id "org.jetbrains.kotlin.jvm" version "1.6.10"
+    id "com.github.johnrengelman.shadow" version "7.1.2"
+}
+
+group "jp.juggler.nitterFilter2"
+version "0.1"
+
+repositories {
+    mavenCentral()
+    mavenCentral()
+}
+
+dependencies {
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.8.2"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.8.2"
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+
+    implementation("org.jetbrains.kotlin:kotlin-scripting-common")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host")
+
+    implementation "org.jetbrains.kotlinx:kotlinx-datetime:0.3.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-cli:0.3.4"
+
+    def ktorVersion = "1.6.7"
+    implementation "io.ktor:ktor-client-core:$ktorVersion"
+    implementation "io.ktor:ktor-server-core:$ktorVersion"
+    implementation "io.ktor:ktor-server-netty:$ktorVersion"
+    implementation "io.ktor:ktor-client-cio:$ktorVersion"
+
+    implementation "ch.qos.logback:logback-classic:1.2.10"
+
+    implementation "org.xerial:sqlite-jdbc:3.36.0.2"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": "MainKt"
+    }
+}
