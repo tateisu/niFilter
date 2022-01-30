@@ -54,7 +54,6 @@ suspend inline fun <reified T> getOriginalRss(
     }
 }
 
-
 suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
     val name = parameters["name"]
     if (name.isNullOrEmpty()) {
@@ -62,7 +61,7 @@ suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
         return
     }
 
-    log.i("handleRequest: name=$name")
+    log.i("[$name] requested.")
 
     try {
         val rssString = getOriginalRss<String>(client, name)
@@ -94,42 +93,44 @@ suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
     )
 }
 
-suspend fun warmUp(client: HttpClient, user: String) =
-    try {
-        val response = getOriginalRss<HttpResponse>(client, user)
-        log.i("${response.status} [$user]")
-        true
-    } catch (ex: Throwable) {
-        if (ex is ClientRequestException) {
-            log.e("[$user] ${ex.response.status}")
-        } else {
-            log.e(ex, "[$user] warmUp failed.")
+
+fun launchTimer(db: Connection, client: HttpClient) = EmptyScope.launch(Dispatchers.IO) {
+
+    suspend fun warmUp(user: String) =
+        try {
+            val response = getOriginalRss<HttpResponse>(client, user)
+            log.i("${response.status} [$user]")
+            true
+        } catch (ex: Throwable) {
+            if (ex is ClientRequestException) {
+                log.e("[$user] ${ex.response.status}")
+            } else {
+                log.e(ex, "[$user] warmUp failed.")
+            }
+            false
         }
-        false
-    }
 
 
-// キューの項目で処理するべきものがあればそのnameを返す
-fun checkQueue(db: Connection, now: Long): String? {
-    return """select name from queue
+    // キューの項目で処理するべきものがあればそのnameを返す
+    fun checkQueue(now: Long): String? {
+        return """select name from queue
          where requested_at >=? and next_load <=? 
          order by next_load asc limit 1
          """.trimIndent()
-        .query1(
-            db,
-            now - 86400000L,
-            now,
-        )
-        ?.let { it["name"] as? String }
-}
+            .query1(
+                db,
+                now - 86400000L,
+                now,
+            )
+            ?.let { it["name"] as? String }
+    }
 
-fun launchTimer(db: Connection, client: HttpClient) = EmptyScope.launch(Dispatchers.IO) {
     while (true) {
         try {
             delay(10000L)
             val now = System.currentTimeMillis()
-            checkQueue(db, now)?.let { user ->
-                val nextLoad = now + when (warmUp(client, user)) {
+            checkQueue(now)?.let { user ->
+                val nextLoad = now + when (warmUp(user)) {
                     true -> intervalAfterSuccess
                     else -> intervalAfterError
                 }
