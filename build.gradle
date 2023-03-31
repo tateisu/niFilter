@@ -1,6 +1,6 @@
 plugins {
     id "java"
-    id "org.jetbrains.kotlin.jvm" version "1.6.10"
+    id "org.jetbrains.kotlin.jvm" version "1.7.22"
     id "com.github.johnrengelman.shadow" version "7.1.2"
 }
 
@@ -21,7 +21,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-scripting-jvm"
     implementation "org.jetbrains.kotlin:kotlin-scripting-jvm-host"
 
-    def ktorVersion = "1.6.7"
+    def ktorVersion = "2.2.4"
     implementation "io.ktor:ktor-client-core:$ktorVersion"
     implementation "io.ktor:ktor-server-core:$ktorVersion"
     implementation "io.ktor:ktor-server-netty:$ktorVersion"

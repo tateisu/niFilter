@@ -1,14 +1,22 @@
-import io.ktor.application.*
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.features.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.cio.endpoint
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.request.header
+import io.ktor.client.request.request
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.Url
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -42,19 +50,19 @@ val shutdownThread = thread(start = false) {
     }
 }
 
-suspend inline fun <reified T> getOriginalRss(
-    client: HttpClient,
-    name: String,
-): T = client.get("${config.nitterUrl}/$name/rss") {
-    headers {
+private suspend fun HttpClient.getOriginalRss(user: String): HttpResponse =
+    request(url = Url("${config.nitterUrl}/$user/rss")) {
         config.nitterVirtualHost
-            ?.let { set("Host", it) }
+            ?.let { header("Host", it) }
         config.nitterBasicAuth?.toByteArray()?.encodeBase64()
-            ?.let { set("Authorization", "Basic $it") }
+            ?.let { header("Authorization", "Basic $it") }
     }
-}
 
-suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
+suspend fun ApplicationCall.handleRequest(
+    db: Connection,
+    client: HttpClient,
+    removeRt: Boolean,
+) {
     val name = parameters["name"]
     if (name.isNullOrEmpty()) {
         respond(HttpStatusCode.BadRequest, "missing name in url path.")
@@ -64,9 +72,13 @@ suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
     log.i("requested. [$name]")
 
     try {
-        val rssString = getOriginalRss<String>(client, name)
+        var rssString = client.getOriginalRss(name)
+            .bodyAsText(Charsets.UTF_8)
             .replace(reNitterUrl, "twitter.com")
-            .replace(reRtItem, "")
+
+        if (removeRt) {
+            rssString = rssString.replace(reRtItem, "")
+        }
 
         respondText(
             text = rssString,
@@ -93,23 +105,21 @@ suspend fun ApplicationCall.handleRequest(db: Connection, client: HttpClient) {
     )
 }
 
-
 fun launchTimer(db: Connection, client: HttpClient) = EmptyScope.launch(Dispatchers.IO) {
 
     suspend fun warmUp(user: String) =
         try {
-            val response = getOriginalRss<HttpResponse>(client, user)
-            log.i("${response.status} [$user]")
+            val response: HttpResponse = client.getOriginalRss(user)
+            log.i("warmUp: ${response.status} [$user]")
             true
         } catch (ex: Throwable) {
             if (ex is ClientRequestException) {
-                log.e("[$user] ${ex.response.status}")
+                log.e("warmUp: ${ex.response.status} ${ex.response.request.url}")
             } else {
-                log.e(ex, "[$user] warmUp failed.")
+                log.e(ex, "warmUp: error. [$user]")
             }
             false
         }
-
 
     // キューの項目で処理するべきものがあればそのnameを返す
     fun checkQueue(now: Long): String? {
@@ -238,6 +248,7 @@ fun main(args: Array<String>) {
             }
         }
     }
+
     shutdowns.addFirst {
         log.i("closing client")
         client.close()
@@ -256,7 +267,11 @@ fun main(args: Array<String>) {
     ) {
         routing {
             get("/x/{name}/rss") {
-                context.handleRequest(db, client)
+                val includeRetweet = when (context.request.queryParameters["rt"]) {
+                    null, "0", "false" -> false
+                    else -> true
+                }
+                context.handleRequest(db, client, removeRt = !includeRetweet)
             }
         }
     }.start(wait = true)
